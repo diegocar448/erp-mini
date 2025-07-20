@@ -1,31 +1,27 @@
 // src/components/CurrencyInput.tsx
-import { useInput, NumberInputProps } from 'react-admin';
-import { NumericFormat } from 'react-number-format';
+import { TextInput, TextInputProps } from 'react-admin';
+import { useCallback } from 'react';
 
-export const CurrencyInput = (props: NumberInputProps) => {
-  const {
-    field,
-    fieldState: { error },
-    isRequired,
-  } = useInput(props);
+export const CurrencyInput = (props: TextInputProps) => {
+  const parse = useCallback((value: string | number | null) => {
+    if (typeof value === 'string') {
+      // Remove tudo que não for número ou ponto
+      const clean = value.replace(/[^\d,.-]/g, '').replace(',', '.');
+      const number = parseFloat(clean);
+      return isNaN(number) ? null : number;
+    }
+    return value;
+  }, []);
 
-  return (
-    <div style={{ marginBottom: '1rem' }}>
-      <label>{props.label}{isRequired && ' *'}</label>
-      <NumericFormat
-        {...field}
-        thousandSeparator="."
-        decimalSeparator=","
-        prefix="R$ "
-        decimalScale={2}
-        fixedDecimalScale
-        customInput="input"
-        onValueChange={(values) => {
-          field.onChange(values.floatValue);
-        }}
-        style={{ width: '100%', padding: '8px', fontSize: '1rem' }}
-      />
-      {error && <p style={{ color: 'red', fontSize: '0.8rem' }}>{error.message}</p>}
-    </div>
-  );
+  const format = useCallback((value: any) => {
+    if (typeof value === 'number') {
+      return value.toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+      });
+    }
+    return value;
+  }, []);
+
+  return <TextInput {...props} parse={parse} format={format} />;
 };

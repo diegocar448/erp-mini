@@ -6,6 +6,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\Estoque;
+use App\Models\Variacao;
 
 class Produto extends Model
 {
@@ -22,6 +23,11 @@ class Produto extends Model
     public function estoque()
     {
         return $this->hasOne(Estoque::class);
+    }
+
+    public function variacoes()
+    {
+        return $this->hasMany(Variacao::class);
     }
 
 }

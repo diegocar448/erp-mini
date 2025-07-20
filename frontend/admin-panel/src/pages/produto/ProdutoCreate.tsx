@@ -1,4 +1,3 @@
-// src/pages/produtos/ProdutoCreate.tsx
 import {
   Create,
   SimpleForm,
@@ -6,58 +5,27 @@ import {
   NumberInput,
   required,
   minValue,
-  useNotify,
+  ArrayInput,
+  SimpleFormIterator
 } from 'react-admin';
-import { CurrencyInput } from '@/components/CurrencyInput'; // ajuste o caminho se necessário
-//import { CurrencyInput } from '../../components/CurrencyInput'; // ajuste o caminho se necessário
+import { CurrencyInput } from '@/components/CurrencyInput';
 
-// Validações personalizadas
-const validateNome = [required('O nome é obrigatório')];
-const validatePreco = [
-  required('O preço é obrigatório'),
-  minValue(0, 'O preço deve ser maior ou igual a 0'),
-];
-const validateQuantidade = [
-  required('A quantidade é obrigatória'),
-  minValue(0, 'A quantidade deve ser maior ou igual a 0'),
-];
+export const ProdutoCreate = () => (
+  <Create>
+    <SimpleForm>
+      <TextInput source="nome" label="Nome" validate={required()} fullWidth />
+      <TextInput source="descricao" label="Descrição" fullWidth multiline />
+      <CurrencyInput source="preco" label="Preço base" validate={[required(), minValue(0)]} />
 
-export const ProdutoCreate = () => {
-  const notify = useNotify();
+      <NumberInput source="quantidade" label="Estoque total" validate={[required(), minValue(0)]} />
 
-  return (
-    <Create
-      title="Criar Produto"
-      mutationOptions={{
-        onSuccess: () => notify('Produto criado com sucesso!', { type: 'success' }),
-        onError: () => notify('Erro ao criar o produto', { type: 'error' }),
-      }}
-    >
-      <SimpleForm>
-        <TextInput
-          source="nome"
-          label="Nome"
-          validate={validateNome}
-          fullWidth
-        />
-        <TextInput
-          source="descricao"
-          label="Descrição"
-          multiline
-          fullWidth
-        />
-        <CurrencyInput
-          source="preco"
-          label="Preço"
-          validate={validatePreco}
-        />
-        <NumberInput
-          source="quantidade"
-          label="Quantidade"
-          validate={validateQuantidade}
-          min={0}
-        />
-      </SimpleForm>
-    </Create>
-  );
-};
+      <ArrayInput source="variacoes" label="Variações">
+        <SimpleFormIterator>
+          <TextInput source="nome" label="Nome da variação" validate={required()} />
+          <CurrencyInput source="preco" label="Preço" />
+          <NumberInput source="quantidade" label="Estoque" validate={[required(), minValue(0)]} />
+        </SimpleFormIterator>
+      </ArrayInput>
+    </SimpleForm>
+  </Create>
+);
