@@ -1,109 +1,117 @@
-import React, { useEffect, useState } from 'react';
+// src/pages/CarrinhoPage.tsx
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useCarrinho } from '@/context/CarrinhoContext';
 
-type ItemCarrinho = {
-  id: number;
-  nome: string;
-  preco: number;
-  quantidade: number;
-  subtotal: number;
-};
-
-type Endereco = {
-  cep: string;
-  logradouro: string;
-  bairro: string;
-  localidade: string;
-  uf: string;
-};
-
-export default function CarrinhoPage() {
-  const [itens, setItens] = useState<ItemCarrinho[]>([]);
-  const [subtotal, setSubtotal] = useState(0);
-  const [frete, setFrete] = useState(0);
+const CarrinhoPage = () => {
+  const { carrinho, limparCarrinho } = useCarrinho();
   const [cep, setCep] = useState('');
-  const [endereco, setEndereco] = useState<Endereco | null>(null);
+  const [endereco, setEndereco] = useState('');
+  const [erroCep, setErroCep] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const subtotal = carrinho.reduce((total, item) => total + item.preco * item.quantidade, 0);
+  const frete = subtotal >= 100 ? 0 : 20;
+  const total = subtotal + frete;
 
   useEffect(() => {
-    const calcularSubtotal = itens.reduce((total, item) => total + item.subtotal, 0);
-    setSubtotal(calcularSubtotal);
+    const validarCep = async () => {
+      if (cep.length !== 8) {
+        setEndereco('');
+        setErroCep('');
+        return;
+      }
 
-    if (calcularSubtotal >= 52 && calcularSubtotal <= 166.59) {
-      setFrete(15);
-    } else if (calcularSubtotal > 200) {
-      setFrete(0);
-    } else {
-      setFrete(20);
+      try {
+        const response = await axios.get(`http://localhost:8000/api/cep/${cep}`);
+        const data = response.data;
+
+        setEndereco(`${data.logradouro}, ${data.bairro} - ${data.localidade}/${data.uf}`);
+        setErroCep('');
+      } catch (err) {
+        setEndereco('');
+        setErroCep('CEP inválido');
+      }
+    };
+
+    validarCep();
+  }, [cep]);
+
+  const finalizarPedido = async () => {
+    if (!cep || erroCep) {
+      alert('Por favor, insira um CEP válido antes de finalizar o pedido.');
+      return;
     }
-  }, [itens]);
 
-  const buscarEndereco = async () => {
     try {
-      const { data } = await axios.get(`https://viacep.com.br/ws/${cep}/json/`);
-      setEndereco(data);
-    } catch (error) {
-      alert('Erro ao buscar endereço.');
+      setLoading(true);
+      const response = await axios.post('http://localhost:8000/api/pedidos', {
+        produtos: carrinho.map(item => ({
+          produto_id: item.id,
+          quantidade: item.quantidade,
+        })),
+        cep: cep,
+      });
+
+      alert('Pedido criado com sucesso! ID: ' + response.data.pedido_id);
+      limparCarrinho();
+      setCep('');
+      setEndereco('');
+    } catch (error: any) {
+      console.error(error);
+      alert('Erro ao criar pedido: ' + (error.response?.data?.message || 'Erro desconhecido'));
+    } finally {
+      setLoading(false);
     }
-  };
-
-  const removerItem = (id: number) => {
-    setItens((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const finalizarCompra = () => {
-    alert('Compra finalizada!');
   };
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto' }}>
-      <h2>Carrinho</h2>
-      {itens.length === 0 ? (
-        <p>Carrinho vazio.</p>
+    <div style={{ padding: '2rem' }}>
+      <h1>Carrinho de Compras</h1>
+
+      {carrinho.length === 0 ? (
+        <p>Seu carrinho está vazio.</p>
       ) : (
         <>
           <ul>
-            {itens.map((item) => (
+            {carrinho.map(item => (
               <li key={item.id}>
-                {item.nome} - R$ {item.preco.toFixed(2)} x {item.quantidade} = R$ {item.subtotal.toFixed(2)}
-                <button onClick={() => removerItem(item.id)} style={{ marginLeft: 10 }}>
-                  Remover
-                </button>
+                {item.nome} - R$ {item.preco.toFixed(2)} x {item.quantidade}
               </li>
             ))}
           </ul>
 
-          <hr />
           <p><strong>Subtotal:</strong> R$ {subtotal.toFixed(2)}</p>
           <p><strong>Frete:</strong> R$ {frete.toFixed(2)}</p>
-          <p><strong>Total:</strong> R$ {(subtotal + frete).toFixed(2)}</p>
+          <p><strong>Total:</strong> R$ {total.toFixed(2)}</p>
 
-          <div style={{ marginTop: 20 }}>
-            <h3>Endereço de entrega</h3>
-            <input
-              type="text"
-              value={cep}
-              onChange={(e) => setCep(e.target.value)}
-              placeholder="Digite o CEP"
-              style={{ padding: 8, width: 200 }}
-            />
-            <button onClick={buscarEndereco} style={{ marginLeft: 10 }}>
-              Buscar CEP
-            </button>
-
-            {endereco && (
-              <div style={{ marginTop: 10 }}>
-                <p><strong>Logradouro:</strong> {endereco.logradouro}</p>
-                <p><strong>Bairro:</strong> {endereco.bairro}</p>
-                <p><strong>Cidade:</strong> {endereco.localidade} - {endereco.uf}</p>
-              </div>
-            )}
+          <div style={{ marginTop: '1rem' }}>
+            <label>
+              CEP:
+              <input
+                type="text"
+                placeholder="Digite seu CEP"
+                value={cep}
+                onChange={e => setCep(e.target.value.replace(/\D/g, ''))}
+                maxLength={8}
+                style={{ marginLeft: '1rem' }}
+              />
+            </label>
+            {erroCep && <p style={{ color: 'red' }}>{erroCep}</p>}
+            {endereco && <p><strong>Endereço:</strong> {endereco}</p>}
           </div>
 
-          <button onClick={finalizarCompra} style={{ marginTop: 20 }}>
-            Finalizar Compra
+          <button
+            onClick={finalizarPedido}
+            disabled={loading}
+            style={{ marginTop: '1rem' }}
+          >
+            {loading ? 'Finalizando...' : 'Finalizar Pedido'}
           </button>
         </>
       )}
     </div>
   );
-}
+};
+
+export default CarrinhoPage;

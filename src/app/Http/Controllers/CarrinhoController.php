@@ -2,79 +2,83 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Pedido;
 use App\Models\Produto;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 
 class CarrinhoController extends Controller
 {
-    public function adicionar(Request $request)
-    {
-        $validated = $request->validate([
-            'produto_id' => 'required|exists:produtos,id',
-            'quantidade' => 'required|integer|min:1',
-        ]);
-
-        $produto = Produto::with('estoque')->findOrFail($request->produto_id);
-        $carrinho = session()->get('carrinho', []);
-
-        $itemId = (string) $produto->id;
-
-        if (isset($carrinho[$itemId])) {
-            $carrinho[$itemId]['quantidade'] += $request->quantidade;
-        } else {
-            $carrinho[$itemId] = [
-                'produto_id' => $produto->id,
-                'nome' => $produto->nome,
-                'preco' => $produto->preco,
-                'quantidade' => $request->quantidade,
-            ];
-        }
-
-        session()->put('carrinho', $carrinho);
-
-        return response()->json(['message' => 'Produto adicionado ao carrinho com sucesso.', 'carrinho' => $carrinho]);
-    }
-
-    public function verCarrinho()
-    {
-        $carrinho = session()->get('carrinho', []);
-        $subtotal = array_reduce($carrinho, fn($carry, $item) => $carry + $item['preco'] * $item['quantidade'], 0);
-
-        $frete = 20.0;
-        if ($subtotal >= 52.00 && $subtotal <= 166.59) {
-            $frete = 15.0;
-        } elseif ($subtotal > 200.00) {
-            $frete = 0.0;
-        }
-
-        return response()->json([
-            'itens' => array_values($carrinho),
-            'subtotal' => round($subtotal, 2),
-            'frete' => $frete,
-            'total' => round($subtotal + $frete, 2),
-        ]);
-    }
-
-    public function remover(Request $request)
-    {
-        $request->validate([
-            'produto_id' => 'required|exists:produtos,id',
-        ]);
-
-        $carrinho = session()->get('carrinho', []);
-        unset($carrinho[$request->produto_id]);
-
-        session()->put('carrinho', $carrinho);
-
-        return response()->json(['message' => 'Produto removido.', 'carrinho' => $carrinho]);
-    }
-
     public function finalizar(Request $request)
     {
-        // Aqui você pode salvar o pedido real no banco de dados, etc.
-        session()->forget('carrinho');
+        $user = $request->user();
 
-        return response()->json(['message' => 'Pedido finalizado com sucesso.']);
+        $validator = Validator::make($request->all(), [
+            'produtos' => 'required|array|min:1',
+            'produtos.*.id' => 'required|integer|exists:produtos,id',
+            'produtos.*.quantidade' => 'required|integer|min:1',
+            'frete' => 'required|numeric|min:0',
+            'cep' => 'required|string',
+            'endereco' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $subtotal = 0;
+
+            // Calcular subtotal
+            foreach ($request->produtos as $item) {
+                $produto = Produto::findOrFail($item['id']);
+                $subtotal += $produto->preco * $item['quantidade'];
+            }
+
+            // Criar o pedido
+            $pedido = Pedido::create([
+                'user_id' => $user->id,
+                'subtotal' => $subtotal,
+                'frete' => $request->frete,
+                'total' => $subtotal + $request->frete,
+                'cep' => $request->cep,
+                'endereco' => $request->endereco,
+            ]);
+
+            // Associar produtos ao pedido
+            foreach ($request->produtos as $item) {
+                $produto = Produto::findOrFail($item['id']);
+
+                // Atualizar estoque
+                if ($produto->estoque && $produto->estoque->quantidade >= $item['quantidade']) {
+                    $produto->estoque->decrement('quantidade', $item['quantidade']);
+                } else {
+                    throw new \Exception("Estoque insuficiente para o produto: {$produto->nome}");
+                }
+
+                $pedido->produtos()->attach($produto->id, [
+                    'quantidade' => $item['quantidade'],
+                    'preco_unitario' => $produto->preco,
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Pedido finalizado com sucesso!',
+                'pedido_id' => $pedido->id
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'error' => 'Erro ao finalizar o pedido.',
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 }
