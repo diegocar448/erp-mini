@@ -14,6 +14,11 @@ import { authProvider } from './authProvider';
 import { LoginPage } from './LoginPage';
 import { RegisterPage } from './RegisterPage';
 
+import { ProdutoList } from './pages/produto/ProdutoList';
+import { ProdutoCreate } from './pages/produto/ProdutoCreate';
+import { ProdutoEdit } from './pages/produto/ProdutoEdit';
+import { ProdutoShow } from './pages/produto/ProdutoShow';
+
 export const App = () => (
   <Admin    
     dataProvider={dataProvider}
@@ -25,12 +30,14 @@ export const App = () => (
       <Route path="/register" element={<RegisterPage />} />
     </CustomRoutes>
 
-    {/* recursos protegidos */}
+    {/* recursos protegidos */}    
     <Resource
-      name="users"
-      list={ListGuesser}
-      edit={EditGuesser}
-      show={ShowGuesser}
+      name="produto"
+      list={ProdutoList}
+      create={ProdutoCreate}
+      edit={ProdutoEdit}
+      show={ProdutoShow}
     />
+
   </Admin>
 );
