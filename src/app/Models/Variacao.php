@@ -11,7 +11,7 @@ class Variacao extends Model
 
     protected $table = 'variacoes';
 
-    protected $fillable = ['produto_id', 'nome', 'preco', 'quantidade'];
+    protected $fillable = ['nome', 'preco', 'quantidade'];
 
     public function produto()
     {

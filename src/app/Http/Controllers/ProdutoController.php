@@ -64,16 +64,21 @@ class ProdutoController extends Controller
         ]);
 
         $produto = Produto::create($request->only(['nome', 'descricao', 'preco']));
+
         $produto->estoque()->create([
             'quantidade' => $request->input('quantidade', 0)
         ]);
 
-        // Variações
         if ($request->has('variacoes')) {
             foreach ($request->variacoes as $v) {
-                $produto->variacoes()->create($v);
+                $produto->variacoes()->create([
+                    'nome' => $v['nome'],
+                    'preco' => $this->parsePreco($v['preco']),
+                    'quantidade' => $v['quantidade'],
+                ]);
             }
         }
+
 
         // Retorna o objeto completo já com quantidade
         return $this->show($produto->id);
@@ -132,8 +137,14 @@ class ProdutoController extends Controller
             $produto->variacoes()->delete();
 
             // Recria a lista com os novos dados
-            foreach ($request->variacoes as $v) {
-                $produto->variacoes()->create($v);
+            if ($request->has('variacoes')) {
+                foreach ($request->variacoes as $v) {
+                    $produto->variacoes()->create([
+                        'nome' => $v['nome'],
+                        'preco' => $this->parsePreco($v['preco']),
+                        'quantidade' => $v['quantidade'],
+                    ]);
+                }
             }
         }
 
@@ -148,5 +159,13 @@ class ProdutoController extends Controller
         $produto->delete();
 
         return response()->json(['message' => 'Produto deletado com sucesso.']);
+    }
+
+
+    //Função auxiliar para tratar o preço
+    private function parsePreco($preco)
+    {
+        // Remove R$, espaços, pontos e troca vírgula por ponto
+        return floatval(str_replace(',', '.', preg_replace('/[^\d,]/', '', $preco)));
     }
 }

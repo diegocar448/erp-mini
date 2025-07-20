@@ -29,5 +29,4 @@ class Produto extends Model
     {
         return $this->hasMany(Variacao::class);
     }
-
 }
